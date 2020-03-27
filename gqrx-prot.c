@@ -129,6 +129,25 @@ bool GetCurrentFreq(int sockfd, freq_t *freq)
     sscanf(buf, "%llu", freq);
     return true;
 }
+
+bool DoRecord(int sockfd, bool on)
+{
+    char buf[BUFSIZE];
+    
+    if (on)
+        Send(sockfd, "AOS\n");
+    else
+        Send(sockfd, "LOS\n");
+    Recv(sockfd, buf);
+
+    if (strcmp(buf, "RPRT 0") == 0 )
+        return true;
+    return true;
+}
+
+
+
+
 bool SetFreq(int sockfd, freq_t freq)
 {
     char buf[BUFSIZE];

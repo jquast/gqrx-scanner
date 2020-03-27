@@ -56,6 +56,7 @@ bool Recv(int sockfd, char *buf);
 // GQRX Protocol
 //
 bool GetCurrentFreq(int sockfd, freq_t *freq);
+bool DoRecord(int sockfd, bool on);
 bool SetFreq(int sockfd, freq_t freq);
 bool GetSignalLevel(int sockfd, double *dBFS);
 bool GetSquelchLevel(int sockfd, double *dBFS);

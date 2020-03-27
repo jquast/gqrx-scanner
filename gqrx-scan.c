@@ -459,29 +459,36 @@ void nonblock(int state)
 // GetTime
 // Get the time stamp dd-mm-yy hh:mm:ss
 //
-time_t GetTime(char *timestamp)
+struct timespec GetTime(char *timestamp)
 {
+    struct timespec tp;
+    clock_gettime(CLOCK_MONOTONIC, &tp);
+    //printf("result: %i\n", result);
+    //printf("%lld.%.9ld", (long long)ts.tv_sec, ts.tv_nsec)
+    //printf("tp.tv_sec: %lld\n", tp.tv_sec);
+    //printf("tp.tv_nsec: %ld\n", tp.tv_nsec);
     time_t etime = time(NULL);
     struct tm *ltime = localtime (&etime);
     sprintf(timestamp, "%2.2d-%2.2d-%2.2d %2.2d:%2.2d:%2.2d", ltime->tm_mday, ltime->tm_mon+1, ltime->tm_year%100,
             ltime->tm_hour, ltime->tm_min, ltime->tm_sec);
-    return etime;
+    return tp;
 }
 // Calculate difference in time as form, '23h45m56.60s'
-double DiffTime(char *timestamp, time_t start_time)
-{
-    double elapsed_seconds;
-    time_t etime = time (NULL);
-
-    elapsed_seconds = difftime(etime, start_time);
-
-    int disp_minutes = elapsed_seconds / 60;
-    double disp_seconds = elapsed_seconds - (disp_minutes * 60);
-    int disp_hours = disp_minutes / 60;
-    disp_minutes -= (disp_hours * 60);
-    sprintf(timestamp, "%2dh%2dm%2.2fs", disp_hours, disp_minutes, disp_seconds);
-    return elapsed_seconds;
-}
+//double DiffTime(char *timestamp, time_t start_time)
+//{
+    //double elapsed_seconds;
+    //time_t etime = time (NULL);
+    //
+    //elapsed_seconds = difftime(etime, start_time);
+    //printf("wtf %2.2fs\n", elapsed_seconds);
+    //
+    //int disp_minutes = elapsed_seconds / 60;
+    //double disp_seconds = elapsed_seconds - (disp_minutes * 60);
+    //int disp_hours = disp_minutes / 60;
+    //disp_minutes -= (disp_hours * 60);
+    //sprintf(timestamp, "%0dh %02dm %00.2fs", disp_hours, disp_minutes, disp_seconds);
+    //return elapsed_seconds;
+//}
 
 //
 // WaitUserInputOrDelay
@@ -492,7 +499,7 @@ bool WaitUserInputOrDelay (int sockfd, long delay, freq_t *current_freq)
 {
     double    squelch;
     double  level;
-    long    sleep_time = 0, sleep = 100000; // 100 ms
+    long    sleep_time = 0, sleep = 200000; // 200 ms
     int     exit = 0;
     char    c;
     bool    skip = false;
@@ -505,59 +512,60 @@ bool WaitUserInputOrDelay (int sockfd, long delay, freq_t *current_freq)
 #endif
     nonblock(NB_ENABLE);
     
-    do
+    // 100ms keycheck routine (only!)
+    GetCurrentFreq(sockfd,  current_freq);
+    usleep(100000);
+    if (kbhit())
     {
-        GetCurrentFreq(sockfd,  current_freq);
-        GetSquelchLevel(sockfd, &squelch);
-        GetSignalLevel(sockfd,  &level );
-        exit = kbhit();
-        if (exit !=  0)
+        c = fgetc(stdin);
+        switch (c)
         {
-            c = fgetc(stdin);
-            switch (c)
+            case ' ':
+            case '\n':
             {
-                case ' ':
-                case '\n':
-                {
-                    exit = 1; // exit
-                    skip = true;
-                    break; 
-                }
-                case 'b':
-                {
-                    // Ban a frequency
-                    BanFreq(*current_freq);
-                    exit = 1;
-                    skip = true;
-                    break;
-                }
-                case 'c':
-                {
-                    // Clear all bans
-                    ClearAllBans();
-                    exit = 0;
-                    break;
-                }
-                case 'p':
-                {
-                    // pause until another 'p'
-                    pause ^= true; // switch pause mode 
-                    exit = 0;
-                    break;
-                }
-                default:
-                    exit = 0;
-                
+                return true;
+                //exit = 1; // exit
+                //skip = true;
+                //break; 
             }
-            if (exit == 1)
-                break;
+            case 'b':
+            {
+                // Ban a frequency
+                BanFreq(*current_freq);
+                return true;
+                //exit = 1;
+                //skip = true;
+                //break;
+            }
+            case 'c':
+            {
+                // Clear all bans
+                ClearAllBans();
+                return false;
+                //exit = 0;
+                //break;
+            }
+                //case 'p':
+               // {
+                    // pause until another 'p'
+                    //pause ^= true; // switch pause mode 
+                    //exit = 0;
+                    //break;
+                //}
+                //default:
+                //    exit = 0;
         }
+//            if (exit == 1)
+//                break;
+    }
 
+        /*
         if (pause)
         {
             usleep (sleep);
             continue;
         }
+        GetSignalLevel(sockfd,  &level );
 
         // exit = 0
         if (level < squelch )
@@ -569,22 +577,27 @@ bool WaitUserInputOrDelay (int sockfd, long delay, freq_t *current_freq)
                 exit = 1;
                 skip = false;
             }
+            //printf("sleep_time = %d (level < squelch / %2.2f < %2.2f)\n", sleep_time, level, squelch);
         }
         else 
         {
+            //printf("sleep_time = 0 (level >= squelch / %2.2f >= %2.2f)\n", level, squelch);
             sleep_time = 0; // 
         }
         // someone is tx'ing
+        printf("sleep for %d\n", sleep);
         usleep(sleep); 
-    } while ( !exit ) ; 
+        */
 
     nonblock(NB_DISABLE);
     
 
+    /*
     // restart scanning
     *current_freq+=g_ban_tollerance;
     // round up to next near tenth of khz  145892125 -> 145900000
     *current_freq = ceil( *current_freq / 10000.0 ) * 10000.0; 
+    */
     
 #ifndef OSX
     __fpurge(stdin);
@@ -712,58 +725,150 @@ freq_t FilterFrequency (int idx)
     return current_freq;
 }
 
+
 bool ScanBookmarkedFrequenciesInRange(int sockfd, freq_t freq_min, freq_t freq_max)
 {
+    struct timespec time_start; // start of recording
+    struct timespec time_now;   // current time
+    struct timespec time_hit;   // last active meter level
+
     freq_t freq = 0;
-    GetCurrentFreq(sockfd, &freq);
+    //GetCurrentFreq(sockfd, &freq);
+
     double level = 0;
-    GetSignalLevel(sockfd, &level );
     double squelch = 0;
-    GetSquelchLevel(sockfd, &squelch);
+    double meter = 0;
 
+    //GetSquelchLevel(sockfd, &squelch);
+    //GetSignalLevel(sockfd, &level );
+
+
+    //bool skip = false;
+    bool active = false;
+    bool scan_forward = true;
+    bool scan_all_freqs = (freq_min == freq_max);
     freq_t current_freq = freq_min;
-
-    bool skip = false;
-    long sleep_cycle_active = 500000; // skipping from active frequency need more time to wait squelch level to kick in
-    long sleep_cyle_saved   = 85000 ; // skipping freqeuency need more time to get signal level
+    //long sleep_cycle_active = 1000000; // skipping from active frequency need more time to wait squelch level to kick in
+    //long sleep_cyle_saved   = 50000 ; // skipping freqeuency need more time to get signal level
     char timestamp[BUFSIZE] = {0};
+    double elapsed, dead_elapsed;
+    int freq_idx = 0;
+    int direction_changes = 0;
+    int miss_count = 1000;
+
+    int fib_t1 = 2, fib_t2 = 3;
+    int fib_nextterm = fib_t1 + fib_t2;
+    bool recording = false;
+    //= GetTime(timestamp);
+    //double elapsed = DiffTime(timestamp, hit_time);
     while (true)
     {
         for (int i = 0; i < Frequencies_Max; i++)
         {
-            if ((current_freq = FilterFrequency(i)) == (freq_t) 0 )
+            freq_idx = scan_forward ? i : Frequencies_Max - i - 1;
+            if ((current_freq = FilterFrequency(freq_idx)) == (freq_t) 0) {
                 continue;
+            }
             if (IsBannedFreq(&current_freq))
+            {
                 continue;
-            if ( ( ( current_freq >= freq_min) &&         // in the valid range
-                   ( current_freq <  freq_max)    ) ||  
-                 (freq_min == freq_max)                )  // or using the entire frequencies 
-                {
-                    // Found a bookmark in the range
-                    SetFreq(sockfd, current_freq);
-                    GetSquelchLevel(sockfd, &squelch);
-                    usleep((skip)?sleep_cycle_active:sleep_cyle_saved);
-                    GetSignalLevelEx(sockfd, &level, 3 );
-                    if (level >= squelch)
-                    {
-                        time_t hit_time = GetTime(timestamp);
-                        printf ("[%s] Freq: %s active [%s], Level: %2.2f/%2.2f ", 
-                                timestamp, print_freq(current_freq), 
-                                Frequencies[i].descr, level, squelch);
-                        fflush(stdout);
-                        skip = WaitUserInputOrDelay(sockfd, opt_delay, &current_freq);
-                        time_t elapsed = DiffTime(timestamp, hit_time);
-                        printf (" [%s elapsed]\n", timestamp);
-                        fflush(stdout);
-                    }
-                    else    
-                        skip = false;
-                    
-                }
-        }
-        
-    }
+            }
+            if ((scan_all_freqs) || ((current_freq >= freq_min) && (current_freq <= freq_max))) {
 
+                // tune, wait (130ms ..), and measure
+                SetFreq(sockfd, current_freq);
+                usleep(140000);
+
+                // when inactive, take just 5x10ms measurements
+                printf("\033[1GScanning %s [ %s ] ",
+                        print_freq(current_freq),
+                        Frequencies[freq_idx].descr);
+                GetSignalLevelEx(sockfd, &level, 3);
+                GetSquelchLevel(sockfd, &squelch);
+                meter = level - squelch;
+                printf("level: %6.2fdB \033[K", meter);
+                do {
+                    fflush(stdout);
+                    if (active) {
+                        // once active, take 100x10ms measurements
+                        GetSignalLevelEx(sockfd, &level, 100);
+                        GetSquelchLevel(sockfd, &squelch);
+                        printf(".\b");
+                    }
+
+                    // what's our "meter" reading?
+                    meter = level - squelch;
+                    clock_gettime(CLOCK_MONOTONIC, &time_now);
+                    if (!active) {
+                        if (meter >= 0.0) {
+                            // positive reading, become active!
+                            clock_gettime(CLOCK_MONOTONIC, &time_hit);
+                            clock_gettime(CLOCK_MONOTONIC, &time_start);
+                            GetTime(timestamp);
+                            active = true;
+                            // XXX Debounce ??
+                            // reset fibinocci count
+                            miss_count = 0;
+                            fib_t1 = fib_t2 = 1;
+                            fib_nextterm = 2;
+                            printf("!\b");
+                        } else {
+                            // inactive readings, this is a "miss", change directions on fibonacci
+                            // numbers, this causes us keep centered on the last hit frequency
+                            // while gently expanding our scan radius,
+                            miss_count++;
+                            if(fib_nextterm <= miss_count) {
+                                fib_t1 = fib_t2;
+                                fib_t2 = fib_nextterm;
+                                fib_nextterm = fib_t1 + fib_t2;
+                                scan_forward = !scan_forward;
+                            }
+                            printf(".\b");
+                        }
+                    } else {
+                        if (recording) {
+                            printf ("\033[1G%s %s [%s] recording %0.2f seconds, level: %6.2fdB ", 
+                                    timestamp, print_freq(current_freq), 
+                                    Frequencies[freq_idx].descr, elapsed, meter);
+                        }
+                        if (meter >= 0.0) {
+                            // await 0.35s before recording begins, i hate to do this
+                            // but I think it's the only way to curb against so many
+                            // false starts vs. fast scanning speed, a minor squelch
+                            // tick now and then can be discarded ..
+                            if ((elapsed > 0.35) && (!recording)) {
+                                DoRecord(sockfd, true);
+                                recording = true;
+                            }
+                            clock_gettime(CLOCK_MONOTONIC, &time_hit);
+                            elapsed = ((double)(time_hit.tv_sec - time_start.tv_sec) +
+                                      ((double)(time_hit.tv_nsec - time_start.tv_nsec) / 1000000000));
+                            printf("O\b");
+                        } else {
+                            printf(".\b");
+                            // meter levels low, how long has it been?
+                            dead_elapsed = ((double)(time_now.tv_sec - time_hit.tv_sec) +
+                                           ((double)(time_now.tv_nsec - time_hit.tv_nsec) / 1000000000));
+                            if (dead_elapsed > 1.7) {
+                                if (recording) {
+                                    //  more than 1700ms of dead air, stop recording if recording.
+                                    //  there seems to be a full 1-second delay behind
+                                    //  in 'stopRecording' vs. the voice channel recorded, this
+                                    //  helps catch "the end" parts, wtf??
+                                    printf ("\033[1G%s %s [%s] recorded %6.2f seconds\033[K\n", 
+                                            timestamp, print_freq(current_freq), 
+                                            Frequencies[freq_idx].descr, elapsed);
+                                    DoRecord(sockfd, false);
+                                    recording = false;
+                                }
+                                active = false;
+                            }
+                        }
+                    }
+                } while (active);
+            }
+        }
+    }
 }
 
 //
@@ -965,8 +1070,9 @@ freq_t AdjustFrequency(int sockfd, freq_t current_freq, freq_t freq_interval)
     
     if (found)
     {
+        printf("found?\n");
         SetFreq(sockfd, current_freq);
-        usleep(150000);      
+        usleep(500000);      
         // Cheating: here I return the rough value from the first pass to avoid stucking on possibly wrong freq.
         return levels[l].freq;    
     }
@@ -1145,14 +1251,14 @@ bool ScanFrequenciesInRange(int sockfd, freq_t freq_min, freq_t freq_max, freq_t
             else
             {
                 SaveFreq(current_freq);    
-                time_t hit_time = GetTime(timestamp);
+                GetTime(timestamp);
                 printf ("[%s] Freq: %s active, Level: %2.2f/%2.2f ", 
                         timestamp, print_freq(current_freq), 
                         level, squelch);
                 fflush(stdout);
                 // Wait user input or delay time after signal lost
                 skip = WaitUserInputOrDelay(sockfd, opt_delay, &current_freq);
-                time_t elapsed = DiffTime(timestamp, hit_time);
+                //time_t elapsed = DiffTime(timestamp, hit_time);
                 printf (" [%s elapsed]\n", timestamp);
                 fflush(stdout);
             }
